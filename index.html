@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Big Data Analysis 2 · Parquet, Arrow &amp; Iceberg</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:       #f5f0eb;
+    --surface:  #ffffff;
+    --surface2: #fdf6f0;
+    --surface3: #faeee4;
+    --border:   #e8d5c4;
+    --border2:  #d4b89e;
+    --text:     #1f1008;
+    --muted:    #7a5a46;
+    --rust:     #9b3d14;
+    --rust2:    #c4511c;
+    --rust-lt:  #f0e4da;
+    --amber:    #c4511c;
+    --amber2:   #e8814a;
+    --coral:    #dc2626;
+    --green:    #15803d;
+    --teal:     #0e7490;
+    --blue:     #1d4ed8;
+    --purple:   #7c3aed;
+    --slate:    #57534e;
+    --radius:   12px;
+    --mono: 'Roboto Mono', 'Fira Code', monospace;
+    --sans: 'Outfit', system-ui, sans-serif;
+    --cyan:        #9b3d14;
+    --surface-code:#fdf6f0;
+    --green2:      #15803d;
+    --gold:        #c4511c;
+    --gold2:       #e8814a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.75;
+    max-width: 880px; margin: 0 auto; padding: 24px 20px 60px;
+  }
+
+  #progressBar {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--rust), var(--amber2), var(--rust2));
+    z-index: 1000; transition: width .1s linear;
+    box-shadow: 0 0 10px rgba(155,61,20,.2);
+  }
+
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #8b3a1a 0%, #a04020 50%, #7a3010 100%);
+    border: 1px solid var(--border2); border-radius: 18px;
+    padding: 40px 36px 32px; margin-bottom: 32px;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -80px; right: -80px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(220,100,30,.12) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(255,235,210,.95);
+    background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 20px; padding: 4px 12px; margin-bottom: 14px;
+  }
+  .hero h1 { font-size: 30px; font-weight: 800; line-height: 1.2; margin-bottom: 10px; color: #fff; }
+  .hero h1 span {
+    background: linear-gradient(135deg, #fff, rgba(255,220,180,.9));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero-sub { color: rgba(255,235,210,.85); font-size: 14.5px; max-width: 620px; margin-bottom: 20px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip { font-size: 11.5px; font-weight: 600; padding: 4px 12px; border-radius: 20px; border: 1px solid; }
+  .chip-c { color: var(--cyan);   border-color: rgba(155,61,20,.3);  background: rgba(155,61,20,.07); }
+  .chip-a { color: var(--amber);  border-color: rgba(196,81,28,.3);  background: rgba(196,81,28,.07); }
+  .chip-b { color: var(--blue);   border-color: rgba(29,78,216,.3);  background: rgba(29,78,216,.07); }
+  .chip-g { color: var(--green);  border-color: rgba(21,128,61,.3);  background: rgba(21,128,61,.07); }
+  .chip-p { color: var(--purple); border-color: rgba(124,58,237,.3); background: rgba(124,58,237,.07);}
+  .hero .chip-c { color: rgba(255,235,210,.9); border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.12); }
+  .hero .chip-a { color: rgba(255,235,210,.9); border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.12); }
+  .hero .chip-b { color: rgba(200,220,255,.95); border-color: rgba(200,220,255,.35); background: rgba(255,255,255,.12); }
+  .hero .chip-g { color: rgba(180,255,200,.9); border-color: rgba(180,255,200,.35);  background: rgba(255,255,255,.12); }
+  .hero .chip-p { color: rgba(220,200,255,.95); border-color: rgba(220,200,255,.35); background: rgba(255,255,255,.12); }
+
+  .toc { display: flex; flex-wrap: wrap; gap: 7px; }
+  .toc a {
+    font-size: 11.5px; font-weight: 600; padding: 4px 10px;
+    border-radius: 16px; background: rgba(155,61,20,.05);
+    color: var(--cyan); text-decoration: none; border: 1px solid rgba(155,61,20,.25);
+    transition: background .15s;
+  }
+  .toc a:hover { background: rgba(155,61,20,.1); }
+
+  .section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 30px 30px 26px;
+    margin-bottom: 24px; position: relative; overflow: hidden;
+  }
+  .section::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: linear-gradient(180deg, var(--rust), var(--amber2), transparent);
+    border-radius: 3px 0 0 3px;
+  }
+  .sec-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+  .sec-num {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--rust); background: rgba(155,61,20,.1);
+    border: 1px solid rgba(155,61,20,.25);
+    border-radius: 6px; padding: 3px 9px; white-space: nowrap; margin-top: 3px;
+  }
+  .sec-title { font-size: 18px; font-weight: 800; line-height: 1.25; }
+  .sec-title .hl { color: var(--cyan); }
+  .sec-quote {
+    font-size: 14.5px; font-style: italic; color: var(--muted);
+    border-left: 2px solid var(--cyan); padding-left: 14px; margin-bottom: 18px;
+  }
+
+  h3 { font-size: 11px; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: 1.5px; margin: 22px 0 10px; }
+  p  { color: var(--text); margin-bottom: 12px; }
+  strong { color: var(--rust); font-weight: 700; }
+  em { color: var(--cyan); font-style: normal; font-weight: 600; }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; }
+
+  pre {
+    background: #fdf6f0; border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; font-family: var(--mono); font-size: 13px;
+    line-height: 1.65; overflow-x: auto; margin: 12px 0;
+  }
+  code { font-family: var(--mono); font-size: .9em; }
+  .kw  { color: #1d4ed8; }
+  .fn  { color: var(--cyan); }
+  .str { color: var(--green); }
+  .num { color: var(--amber); }
+  .cmt { color: #7a5a46; font-style: italic; }
+  .cls { color: var(--amber2); }
+
+  .out {
+    background: #f0f7f2; border: 1px solid rgba(21,128,61,.25); border-radius: 8px;
+    padding: 11px 16px; font-family: var(--mono); font-size: 12.5px;
+    color: var(--green); margin: 4px 0 14px;
+  }
+  .out-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-bottom: 4px; }
+
+  .callout { border-radius: 10px; padding: 14px 16px; margin: 14px 0; display: flex; gap: 12px; align-items: flex-start; }
+  .callout-icon { font-size: 17px; flex-shrink: 0; margin-top: 1px; }
+  .callout-body { flex: 1; }
+  .callout-body b { display: block; font-size: 13px; color: var(--amber2); margin-bottom: 4px; }
+  .callout-body p { margin: 0; font-size: 13.5px; }
+  .c-cyan   { background: rgba(155,61,20,.06);  border-left: 3px solid var(--cyan); }
+  .c-amber  { background: rgba(196,81,28,.06);  border-left: 3px solid var(--amber); }
+  .c-red    { background: rgba(220,38,38,.06);  border-left: 3px solid var(--coral); }
+  .c-green  { background: rgba(21,128,61,.06);  border-left: 3px solid var(--green); }
+  .c-purple { background: rgba(124,58,237,.06); border-left: 3px solid var(--purple);}
+  .c-blue   { background: rgba(29,78,216,.06);  border-left: 3px solid var(--blue); }
+
+  .diagram {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin: 16px 0; text-align: center;
+  }
+  .diagram figcaption { font-size: 12px; color: var(--muted); margin-top: 12px; font-style: italic; }
+
+  .demo {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px; margin: 16px 0;
+  }
+  .demo-hd {
+    font-size: 11.5px; font-weight: 700; color: var(--cyan);
+    text-transform: uppercase; letter-spacing: 1.2px;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 7px;
+  }
+  .demo-hd::before { content: '⚡'; font-size: 14px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 15px; border-radius: 8px; font-family: var(--sans);
+    font-size: 13px; font-weight: 700; cursor: pointer; border: none;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-1px); }
+  .btn-c  { background: var(--rust);   color: #fff; }
+  .btn-a  { background: var(--amber);  color: #fff; }
+  .btn-b  { background: var(--blue);   color: #fff; }
+  .btn-g  { background: var(--green);  color: #fff; }
+  .btn-p  { background: var(--purple); color: #fff; }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+
+  .demo-out {
+    background: #fdf6f0; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 15px; font-family: var(--mono); font-size: 12.5px;
+    min-height: 40px; color: var(--cyan); white-space: pre-wrap; margin-top: 10px;
+  }
+
+  .tbl { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  .tbl th {
+    background: var(--surface3); padding: 10px 14px; text-align: left;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--muted); border-bottom: 2px solid var(--border2);
+  }
+  .tbl td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: rgba(155,61,20,.04); }
+  .tbl code { font-family: var(--mono); font-size: 12px; color: var(--cyan); }
+
+  .story {
+    background: linear-gradient(135deg, var(--surface2), var(--surface3));
+    border: 1px solid rgba(155,61,20,.25); border-radius: 12px; padding: 22px 24px; margin-bottom: 20px;
+  }
+  .story-label { font-size: 11px; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 14px 0; }
+  .steps li {
+    counter-increment: step; display: flex; gap: 14px; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step); flex-shrink: 0; width: 26px; height: 26px;
+    background: var(--rust); color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; margin-top: 2px;
+  }
+  .step-body { flex: 1; }
+  .step-body b { display: block; font-size: 14px; color: var(--rust); margin-bottom: 3px; }
+  .step-body p { margin: 0; font-size: 13.5px; }
+
+  .s-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .s-row:last-child { border-bottom: none; }
+  .s-q { flex: 0 0 230px; font-size: 13px; color: var(--muted); }
+  .s-code { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--rust); background: var(--surface2); border-radius: 5px; padding: 4px 9px; }
+
+  .q-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+  .q-text { font-weight: 700; margin-bottom: 12px; font-size: 14.5px; }
+  .q-opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; cursor: pointer;
+    margin-bottom: 6px; border: 1px solid transparent;
+    transition: all .15s; font-size: 13.5px;
+  }
+  .q-opt:hover { background: rgba(155,61,20,.06); border-color: rgba(155,61,20,.25); }
+  .q-opt input { accent-color: var(--cyan); }
+  .q-opt.correct { background: rgba(21,128,61,.1);  border-color: var(--green); }
+  .q-opt.wrong   { background: rgba(220,38,38,.08); border-color: var(--coral); }
+  .q-fb { font-size: 13px; padding: 10px 12px; border-radius: 7px; margin-top: 10px; display: none; }
+  .q-fb.show { display: block; }
+  .q-fb.ok  { background: rgba(21,128,61,.1);  color: var(--green); }
+  .q-fb.err { background: rgba(220,38,38,.08); color: var(--coral); }
+
+  /* snapshot timeline */
+  .timeline { position: relative; padding-left: 24px; margin: 16px 0; }
+  .timeline::before { content: ''; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: var(--border2); border-radius: 1px; }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-dot { position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--rust); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--rust); }
+  .tl-label { font-size: 11px; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .tl-body { font-size: 13.5px; color: var(--text); }
+  .tl-code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="progressBar"></div>
+
+<!-- ═══════════ HERO ═══════════ -->
+<div class="hero">
+  <div class="hero-eyebrow">🗂️ Big Data Analysis · Lecture 2</div>
+  <h1>Parquet, Arrow <span>&amp; Iceberg</span></h1>
+  <p class="hero-sub">Session 1 was about querying data wherever it already lives. Session 2 is about storing it properly — with version history, schema evolution, and time travel — still on a single laptop.</p>
+  <div class="chip-row">
+    <span class="chip chip-c">CSV vs Parquet</span>
+    <span class="chip chip-a">Arrow in Memory</span>
+    <span class="chip chip-g">Iceberg Table Format</span>
+    <span class="chip chip-b">Schema Evolution</span>
+    <span class="chip chip-p">Time Travel</span>
+  </div>
+  <div class="toc">
+    <a href="#s1">01 CSV vs Parquet</a>
+    <a href="#s2">02 Arrow Deep Dive</a>
+    <a href="#s3">03 Iceberg Idea</a>
+    <a href="#s4">04 Building an Iceberg Table</a>
+    <a href="#s5">05 Catalog Servers</a>
+    <a href="#s6">06 Quiz</a>
+  </div>
+</div>
+
+<!-- ═══════════ STORY ═══════════ -->
+<div class="story">
+  <div class="story-label">🔦 The Cold Open</div>
+  <p>Open <code>sales_ledger.csv</code> and check its size on disk: <strong>41,719 bytes</strong>. Now save the exact same 1,200 rows as a Parquet file and check again: <strong>18,236 bytes</strong>. The CSV is 2.3× larger — and that gap only widens at real scale.</p>
+  <p>But size is the smallest part of this story. <strong>Every time a tool opens a CSV, it re-guesses the schema from scratch.</strong> A Parquet file carries its own schema stamped inside it — column names, types, everything — before a single data row is touched.</p>
+  <p>Session 2 is about what happens when you stop treating the file as a bag of text and start treating it as a versioned, self-describing table.</p>
+</div>
+
+<!-- ═══════════ S1: CSV VS PARQUET ═══════════ -->
+<div class="section" id="s1">
+  <div class="sec-header">
+    <span class="sec-num">01</span>
+    <div><div class="sec-title">CSV vs <span class="hl">Parquet</span></div></div>
+  </div>
+  <p class="sec-quote">"A CSV is just text. A Parquet file is a self-describing table with its schema embedded — nobody re-guesses anything."</p>
+
+  <p>The difference shows up immediately when you read dtypes. pandas infers them from scratch every time it opens a CSV. pyarrow reads Parquet's schema from the file's own footer — in microseconds, before touching a data row.</p>
+
+  <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> pyarrow.parquet <span class="kw">as</span> pq
+
+<span class="cmt"># CSV — pandas re-infers types by scanning every row</span>
+print(pd.<span class="fn">read_csv</span>(<span class="str">"sales_ledger.csv"</span>).dtypes)
+
+<span class="cmt"># Parquet — schema is stored in the file footer</span>
+print(pq.<span class="fn">read_table</span>(<span class="str">"sales_ledger.parquet"</span>).schema)</code></pre>
+
+  <div class="out">
+    <div class="out-lbl">OUTPUT</div>
+CSV dtypes:  order_id int64 · region object · product object · revenue float64
+Parquet schema:  order_id: int64 · region: large_string · revenue: double
+  </div>
+
+  <!-- Diagram: file on disk comparison -->
+  <div class="diagram">
+    <svg viewBox="0 0 540 160" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">
+      <!-- CSV box -->
+      <rect x="20" y="10" width="230" height="140" rx="8" fill="#fff" stroke="#e8d5c4" stroke-width="1.5"/>
+      <text x="135" y="30" fill="#7a5a46" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1" font-family="sans-serif">CSV FILE (text)</text>
+      <rect x="30" y="38" width="210" height="14" rx="2" fill="rgba(155,61,20,.1)"/>
+      <text x="35" y="49" fill="#9b3d14" font-size="9" font-family="monospace">order_id,region,product,revenue</text>
+      <rect x="30" y="55" width="210" height="11" rx="2" fill="rgba(155,61,20,.06)"/>
+      <text x="35" y="64" fill="#7a5a46" font-size="9" font-family="monospace">1,APAC,Widget A,432.10</text>
+      <rect x="30" y="68" width="210" height="11" rx="2" fill="rgba(155,61,20,.06)"/>
+      <text x="35" y="77" fill="#7a5a46" font-size="9" font-family="monospace">2,AMER,Widget B,287.50</text>
+      <text x="135" y="100" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">···  1,197 more rows of plain text  ···</text>
+      <text x="135" y="118" fill="#dc2626" font-size="9" font-weight="700" text-anchor="middle" font-family="sans-serif">No schema — reader guesses types every time</text>
+      <text x="135" y="134" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">41,719 bytes on disk</text>
+      <text x="135" y="148" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">Human-readable in any text editor</text>
+
+      <!-- Parquet box -->
+      <rect x="290" y="10" width="230" height="140" rx="8" fill="#fff" stroke="rgba(155,61,20,.4)" stroke-width="1.5"/>
+      <text x="405" y="30" fill="#9b3d14" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1" font-family="sans-serif">PARQUET FILE (columnar)</text>
+      <!-- column stripes -->
+      <rect x="300" y="38" width="45" height="68" rx="3" fill="rgba(155,61,20,.15)" stroke="rgba(155,61,20,.4)" stroke-width="1"/>
+      <text x="322" y="55" fill="#9b3d14" font-size="8" text-anchor="middle" font-family="monospace">int64</text>
+      <text x="322" y="70" fill="#9b3d14" font-size="8" text-anchor="middle" font-family="monospace">IDs</text>
+      <text x="322" y="84" fill="#9b3d14" font-size="8" text-anchor="middle" font-family="monospace">col 1</text>
+      <rect x="350" y="38" width="50" height="68" rx="3" fill="rgba(21,128,61,.12)" stroke="rgba(21,128,61,.35)" stroke-width="1"/>
+      <text x="375" y="55" fill="#15803d" font-size="8" text-anchor="middle" font-family="monospace">string</text>
+      <text x="375" y="70" fill="#15803d" font-size="8" text-anchor="middle" font-family="monospace">regions</text>
+      <text x="375" y="84" fill="#15803d" font-size="8" text-anchor="middle" font-family="monospace">col 2</text>
+      <rect x="405" y="38" width="45" height="68" rx="3" fill="rgba(29,78,216,.1)" stroke="rgba(29,78,216,.3)" stroke-width="1"/>
+      <text x="427" y="55" fill="#1d4ed8" font-size="8" text-anchor="middle" font-family="monospace">double</text>
+      <text x="427" y="70" fill="#1d4ed8" font-size="8" text-anchor="middle" font-family="monospace">revenue</text>
+      <text x="427" y="84" fill="#1d4ed8" font-size="8" text-anchor="middle" font-family="monospace">col 3</text>
+      <rect x="455" y="38" width="55" height="68" rx="3" fill="rgba(124,58,237,.1)" stroke="rgba(124,58,237,.3)" stroke-width="1"/>
+      <text x="482" y="55" fill="#7c3aed" font-size="8" text-anchor="middle" font-family="monospace">SCHEMA</text>
+      <text x="482" y="70" fill="#7c3aed" font-size="8" text-anchor="middle" font-family="monospace">footer</text>
+      <text x="482" y="84" fill="#7c3aed" font-size="8" text-anchor="middle" font-family="monospace">📋</text>
+      <text x="405" y="118" fill="#15803d" font-size="9" font-weight="700" text-anchor="middle" font-family="sans-serif">Schema embedded — read once, never re-guess</text>
+      <text x="405" y="134" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">18,236 bytes on disk (2.3× smaller)</text>
+      <text x="405" y="148" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">Column-selective reads + built-in compression</text>
+    </svg>
+    <figcaption>CSV is text — the reader guesses types. Parquet carries its own schema and stores data column-by-column.</figcaption>
+  </div>
+
+  <div class="callout c-amber">
+    <span class="callout-icon">💼</span>
+    <div class="callout-body">
+      <b>Interview signal</b>
+      <p>A data engineering JD that lists "Parquet" is asking for comfort with <strong>columnar, self-describing file formats</strong>. Converting a CSV-based pipeline to Parquet is one of the most common first wins a new hire delivers on a legacy data stack — it's the right answer when someone asks "how would you speed up ingestion?"</p>
+    </div>
+  </div>
+
+  <div class="callout c-cyan">
+    <span class="callout-icon">❓</span>
+    <div class="callout-body">
+      <b>FAQ — "If Parquet is better in every way, why does CSV still exist?"</b>
+      <p>CSV is human-readable in any text editor and every tool on the planet can open one. That universality is a real feature for small handoffs and quick inspection. Parquet trades that away for schema, compression, and columnar layout — the right trade the moment a pipeline runs more than once.</p>
+    </div>
+  </div>
+
+  <!-- Demo: format picker -->
+  <div class="demo">
+    <div class="demo-hd">Format Selector</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Which format would you use?</p>
+    <div class="btn-row">
+      <button class="btn btn-c btn-sm" onclick="formatAdvice('csv')">Quick one-time handoff to a colleague</button>
+      <button class="btn btn-a btn-sm" onclick="formatAdvice('parquet')">Production pipeline that runs daily</button>
+      <button class="btn btn-b btn-sm" onclick="formatAdvice('either')">Small file, need schema guaranteed</button>
+    </div>
+    <div class="demo-out" id="fmtOut">Select a scenario to see the recommendation.</div>
+  </div>
+</div>
+
+<!-- ═══════════ S2: ARROW DEEP DIVE ═══════════ -->
+<div class="section" id="s2">
+  <div class="sec-header">
+    <span class="sec-num">02</span>
+    <div><div class="sec-title">Apache Arrow — <span class="hl">Deep Dive</span></div></div>
+  </div>
+  <p class="sec-quote">"Apache Arrow is the in-memory version of what Parquet is on disk — the same columnar idea, just living in RAM instead of a file."</p>
+
+  <p>This is why Session 1's Polars ↔ DuckDB zero-copy handoff worked with no conversion code. Both tools use Arrow as their native in-memory format — the data never leaves columnar layout at all.</p>
+
+  <!-- Diagram: disk vs memory -->
+  <div class="diagram">
+    <svg viewBox="0 0 540 110" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">
+      <text x="270" y="16" fill="#9b3d14" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1" font-family="sans-serif">COLUMNAR — DISK AND MEMORY</text>
+      <!-- disk side -->
+      <rect x="20" y="28" width="140" height="68" rx="8" fill="#fff" stroke="rgba(29,78,216,.4)" stroke-width="1.5"/>
+      <text x="90" y="46" fill="#1d4ed8" font-size="10" font-weight="700" text-anchor="middle" font-family="sans-serif">PARQUET</text>
+      <text x="90" y="62" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">columnar on disk</text>
+      <text x="90" y="78" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">compressed, self-describing</text>
+      <text x="90" y="92" fill="#1d4ed8" font-size="9" font-weight="700" text-anchor="middle" font-family="sans-serif">💾 storage layer</text>
+
+      <!-- arrow in the middle -->
+      <path d="M165,62 L375,62" stroke="#15803d" stroke-width="2" marker-end="url(#ar2)" marker-start="url(#ar3)"/>
+      <rect x="200" y="52" width="140" height="20" rx="4" fill="rgba(21,128,61,.12)" stroke="rgba(21,128,61,.4)" stroke-width="1"/>
+      <text x="270" y="66" fill="#15803d" font-size="9" font-weight="700" text-anchor="middle" font-family="sans-serif">Apache Arrow — same layout</text>
+      <defs>
+        <marker id="ar2" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#15803d"/></marker>
+        <marker id="ar3" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L0,6 L6,3 z" fill="#15803d"/></marker>
+      </defs>
+
+      <!-- memory side -->
+      <rect x="380" y="28" width="140" height="68" rx="8" fill="#fff" stroke="rgba(155,61,20,.4)" stroke-width="1.5"/>
+      <text x="450" y="46" fill="#9b3d14" font-size="10" font-weight="700" text-anchor="middle" font-family="sans-serif">ARROW</text>
+      <text x="450" y="62" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">columnar in RAM</text>
+      <text x="450" y="78" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">Polars, DuckDB, pandas 2.x</text>
+      <text x="450" y="92" fill="#9b3d14" font-size="9" font-weight="700" text-anchor="middle" font-family="sans-serif">⚡ compute layer</text>
+    </svg>
+    <figcaption>Reading Parquet into Arrow is not a conversion — it's the same layout moving from disk to RAM</figcaption>
+  </div>
+
+  <h3>Compute Without Leaving Arrow</h3>
+  <p>You can filter and aggregate in Arrow directly, without converting to pandas or Polars — useful when data is about to be handed to another Arrow-native tool and you don't want even one intermediate copy.</p>
+
+  <pre><code><span class="kw">import</span> pyarrow.parquet <span class="kw">as</span> pq
+<span class="kw">import</span> pyarrow.compute <span class="kw">as</span> pc
+
+t = pq.<span class="fn">read_table</span>(<span class="str">"sales_ledger.parquet"</span>)
+mask     = pc.<span class="fn">greater</span>(t[<span class="str">"revenue"</span>], <span class="num">500</span>)
+filtered = t.<span class="fn">filter</span>(mask)
+print(filtered.num_rows, <span class="str">"of"</span>, t.num_rows, <span class="str">"rows"</span>)</code></pre>
+
+  <div class="out">
+    <div class="out-lbl">OUTPUT</div>
+574 of 1200 rows
+  </div>
+
+  <div class="callout c-green">
+    <span class="callout-icon">🔗</span>
+    <div class="callout-body">
+      <b>The quiet standard behind everything in this course</b>
+      <p>Polars, DuckDB, Parquet, and the Iceberg table format coming up next all read and write the exact same in-memory column layout. That one shared agreement is why none of Session 1's demos needed a single explicit <code>.to_pandas()</code> or conversion function.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ S3: ICEBERG ═══════════ -->
+<div class="section" id="s3">
+  <div class="sec-header">
+    <span class="sec-num">03</span>
+    <div><div class="sec-title">The <span class="hl">Iceberg Idea</span></div></div>
+  </div>
+  <p class="sec-quote">"A single Parquet file is a finished snapshot. A table format turns a folder of Parquet files into something that behaves like a real table — with history."</p>
+
+  <p>When new rows arrive, there's no clean way to add them to a Parquet file, fix a mistake, or see what the data looked like yesterday — not without juggling filenames by hand. <strong>A table format is the missing layer.</strong></p>
+
+  <!-- Diagram: iceberg metadata -->
+  <div class="diagram">
+    <svg viewBox="0 0 540 165" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">
+      <text x="270" y="16" fill="#9b3d14" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1" font-family="sans-serif">ICEBERG — METADATA LAYER ON TOP OF PARQUET FILES</text>
+
+      <!-- Parquet files at bottom -->
+      <rect x="20"  y="118" width="100" height="34" rx="6" fill="rgba(29,78,216,.1)" stroke="rgba(29,78,216,.3)" stroke-width="1"/>
+      <text x="70"  y="130" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">snapshot_1.parquet</text>
+      <text x="70"  y="142" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">1,200 rows</text>
+
+      <rect x="135" y="118" width="100" height="34" rx="6" fill="rgba(29,78,216,.1)" stroke="rgba(29,78,216,.3)" stroke-width="1"/>
+      <text x="185" y="130" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">snapshot_2.parquet</text>
+      <text x="185" y="142" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">200 rows added</text>
+
+      <rect x="250" y="118" width="100" height="34" rx="6" fill="rgba(29,78,216,.1)" stroke="rgba(29,78,216,.3)" stroke-width="1"/>
+      <text x="300" y="130" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">manifest files</text>
+      <text x="300" y="142" fill="#1d4ed8" font-size="9" text-anchor="middle" font-family="monospace">which rows where</text>
+
+      <!-- Iceberg metadata box -->
+      <rect x="20" y="38" width="380" height="62" rx="8" fill="#fff" stroke="rgba(155,61,20,.4)" stroke-width="1.5"/>
+      <text x="210" y="56" fill="#9b3d14" font-size="10" font-weight="700" text-anchor="middle" font-family="sans-serif">ICEBERG METADATA (catalog.db)</text>
+      <text x="210" y="72" fill="#7a5a46" font-size="9" text-anchor="middle" font-family="sans-serif">snapshot_id → which Parquet files → current schema → version history</text>
+      <text x="210" y="88" fill="#15803d" font-size="9" text-anchor="middle" font-family="sans-serif">✅ atomic writes  ✅ schema evolution  ✅ time travel  ✅ no rewriting old files</text>
+
+      <!-- arrows from metadata to files -->
+      <line x1="80"  y1="100" x2="70"  y2="118" stroke="#e8d5c4" stroke-width="1.5"/>
+      <line x1="130" y1="100" x2="185" y2="118" stroke="#e8d5c4" stroke-width="1.5"/>
+      <line x1="200" y1="100" x2="300" y2="118" stroke="#e8d5c4" stroke-width="1.5"/>
+
+      <!-- Catalog label -->
+      <rect x="440" y="38" width="85" height="34" rx="8" fill="rgba(124,58,237,.1)" stroke="rgba(124,58,237,.4)" stroke-width="1"/>
+      <text x="482" y="51" fill="#7c3aed" font-size="9" text-anchor="middle" font-family="sans-serif">SqlCatalog</text>
+      <text x="482" y="64" fill="#7c3aed" font-size="9" text-anchor="middle" font-family="sans-serif">(SQLite file)</text>
+    </svg>
+    <figcaption>The card catalog analogy: books (Parquet files) don't move — only the catalog entries change when you add or evolve</figcaption>
+  </div>
+
+  <div class="callout c-cyan">
+    <span class="callout-icon">❓</span>
+    <div class="callout-body">
+      <b>FAQ — "Isn't a table format just a database?"</b>
+      <p>Not quite. A database owns its storage and query engine end to end. Iceberg only owns the bookkeeping: which Parquet files belong to the table, what the schema is, and what every past version looked like. Any engine that understands that bookkeeping — DuckDB, Spark, Polars, or plain Python — can read or write the same table without ever going through a database server.</p>
+    </div>
+  </div>
+
+  <div class="callout c-green">
+    <span class="callout-icon">💻</span>
+    <div class="callout-body">
+      <b>No cloud required</b>
+      <p><code>pyiceberg</code> is a pure-Python library. Its <code>SqlCatalog</code> stores bookkeeping in a plain local SQLite file. Everything in today's lab runs on a laptop with <strong>no network connection at all</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ S4: BUILDING ICEBERG TABLE ═══════════ -->
+<div class="section" id="s4">
+  <div class="sec-header">
+    <span class="sec-num">04</span>
+    <div><div class="sec-title">Building a Local <span class="hl">Iceberg Table</span></div></div>
+  </div>
+  <p class="sec-quote">"Every step here is exactly what a production Iceberg table does — just with a SQLite file instead of a catalog server."</p>
+
+  <ul class="steps">
+    <li>
+      <div class="step-body">
+        <b>Create a local catalog</b>
+        <p>One call — SqlCatalog writes a SQLite file into the <code>iceberg_warehouse</code> folder. That's the entire "database" for today.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <b>Create the table and append data</b>
+        <p>Schema comes from the Arrow buffer (<code>pa.Table.from_pandas(df, preserve_index=False)</code>). First append → first snapshot → 1,200 rows.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <b>Append again and inspect history</b>
+        <p>Second append creates a second snapshot. Neither one rewrites the other's Parquet file. That's the atomic-write guarantee.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <b>Evolve the schema — add a column</b>
+        <p>One call. Existing rows get <code>null</code> for the new column. Zero rewriting. That's schema evolution.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <b>Time travel to the first snapshot</b>
+        <p>Pass a <code>snapshot_id</code> to <code>.scan()</code>. You get the table as it was before the second append — no restore, no backup.</p>
+      </div>
+    </li>
+  </ul>
+
+  <h3>Key code patterns</h3>
+
+  <pre><code><span class="kw">import</span> os, pandas <span class="kw">as</span> pd, pyarrow <span class="kw">as</span> pa
+<span class="kw">from</span> pyiceberg.catalog.sql <span class="kw">import</span> <span class="cls">SqlCatalog</span>
+
+<span class="cmt"># Step 1 — catalog</span>
+warehouse_path = os.path.<span class="fn">abspath</span>(<span class="str">"iceberg_warehouse"</span>)
+catalog = <span class="cls">SqlCatalog</span>(<span class="str">"local"</span>,
+    uri=<span class="fn">f</span><span class="str">"sqlite:///{warehouse_path}/catalog.db"</span>,
+    warehouse=<span class="fn">f</span><span class="str">"file://{warehouse_path}"</span>)
+catalog.<span class="fn">create_namespace</span>(<span class="str">"sales"</span>)
+
+<span class="cmt"># Step 2 — table + first append</span>
+df         = pd.<span class="fn">read_csv</span>(<span class="str">"sales_ledger.csv"</span>)
+arrow_tbl  = pa.Table.<span class="fn">from_pandas</span>(df, preserve_index=<span class="kw">False</span>)
+table      = catalog.<span class="fn">create_table</span>(<span class="str">"sales.orders"</span>, schema=arrow_tbl.schema)
+table.<span class="fn">append</span>(arrow_tbl)   <span class="cmt"># → 1 snapshot, 1,200 rows</span>
+
+<span class="cmt"># Step 3 — second append → 2 snapshots</span>
+df2 = df.<span class="fn">sample</span>(<span class="num">200</span>, random_state=<span class="num">1</span>).<span class="fn">reset_index</span>(drop=<span class="kw">True</span>)
+table.<span class="fn">append</span>(pa.Table.<span class="fn">from_pandas</span>(df2, preserve_index=<span class="kw">False</span>))
+<span class="kw">for</span> snap <span class="kw">in</span> table.<span class="fn">history</span>(): print(snap)
+<span class="cmt"># → snapshot_id=84493…  snapshot_id=77055…</span>
+
+<span class="cmt"># Step 4 — schema evolution (no rewrite)</span>
+<span class="kw">from</span> pyiceberg.types <span class="kw">import</span> <span class="cls">DoubleType</span>
+<span class="kw">with</span> table.<span class="fn">update_schema</span>() <span class="kw">as</span> update:
+    update.<span class="fn">add_column</span>(<span class="str">"discount_pct"</span>, <span class="cls">DoubleType</span>())
+<span class="cmt"># existing rows → null in discount_pct; nothing rewritten</span>
+
+<span class="cmt"># Step 5 — time travel</span>
+first_snap = table.<span class="fn">history</span>()[<span class="num">0</span>].snapshot_id
+print(len(table.<span class="fn">scan</span>(snapshot_id=first_snap).<span class="fn">to_pandas</span>()))  <span class="cmt"># → 1200</span>
+print(len(table.<span class="fn">scan</span>().<span class="fn">to_pandas</span>()))                         <span class="cmt"># → 1400</span></code></pre>
+
+  <!-- Interactive: snapshot timeline -->
+  <div class="demo">
+    <div class="demo-hd">Snapshot Timeline Explorer</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Step through what happens after each operation:</p>
+    <div class="btn-row">
+      <button class="btn btn-c btn-sm" onclick="showSnap('create')">Create table</button>
+      <button class="btn btn-a btn-sm" onclick="showSnap('append1')">First append (1,200 rows)</button>
+      <button class="btn btn-b btn-sm" onclick="showSnap('append2')">Second append (+200)</button>
+      <button class="btn btn-g btn-sm" onclick="showSnap('schema')">Add column</button>
+      <button class="btn btn-p btn-sm" onclick="showSnap('timetravel')">Time travel to snap 1</button>
+    </div>
+    <div class="demo-out" id="snapOut">Select an operation to see what Iceberg does internally.</div>
+  </div>
+
+  <div class="callout c-amber">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <b>Common stumble: preserve_index=False</b>
+      <p>Calling <code>pa.Table.from_pandas(df)</code> without <code>preserve_index=False</code> after <code>.sample()</code> silently adds a hidden <code>__index_level_0__</code> column. Iceberg refuses the append with a schema-mismatch error. Always pass <code>preserve_index=False</code>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ S5: CATALOG SERVERS ═══════════ -->
+<div class="section" id="s5">
+  <div class="sec-header">
+    <span class="sec-num">05</span>
+    <div><div class="sec-title">What a <span class="hl">Catalog Server</span> Does</div></div>
+  </div>
+  <p class="sec-quote">"Today's SqlCatalog is a local stand-in. A production catalog server does the same job — but for every tool across the whole company."</p>
+
+  <p>Apache Polaris, Unity Catalog, and AWS Glue are the production versions of exactly what <code>SqlCatalog</code> did today. They track which tables exist, their current metadata pointer, and who's allowed to read or write them.</p>
+
+  <div class="callout c-purple">
+    <span class="callout-icon">⚡</span>
+    <div class="callout-body">
+      <b>Polaris ≠ Polars</b>
+      <p><strong>Polars</strong> is the DataFrame library from Session 1 (written in Rust). <strong>Apache Polaris</strong> is a REST catalog server for Iceberg tables, built by Snowflake and donated to Apache — multi-engine, multi-cloud, shared across a whole organization. Similar name, completely different layer.</p>
+    </div>
+  </div>
+
+  <table class="tbl">
+    <thead><tr><th>Situation</th><th>Local SqlCatalog</th><th>Shared catalog server (Polaris, Unity, Glue)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Who can see the table</td>
+        <td>Only this laptop, this SQLite file</td>
+        <td>Every tool across the company registered with the catalog</td>
+      </tr>
+      <tr>
+        <td>Where metadata lives</td>
+        <td>A local SQLite file</td>
+        <td>A managed service with its own access controls</td>
+      </tr>
+      <tr>
+        <td>Setup cost</td>
+        <td>One line of Python, no network</td>
+        <td>An infrastructure team provisions and runs it</td>
+      </tr>
+      <tr>
+        <td>Right fit for</td>
+        <td>Learning, local prototyping, single-user analysis</td>
+        <td>Multiple teams and engines sharing the same versioned tables</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout c-green">
+    <span class="callout-icon">✅</span>
+    <div class="callout-body">
+      <b>The portable guarantee</b>
+      <p>Today's local setup and a production catalog server speak the exact same Iceberg table format underneath. The only thing that changes is who else gets to see the table. Nothing learned today has to be relearned on the job.</p>
+    </div>
+  </div>
+
+  <!-- Lab: mini-project chain -->
+  <div class="demo">
+    <div class="demo-hd">The Full Pipeline — CSV → Parquet → Iceberg → DuckDB</div>
+    <div class="btn-row">
+      <button class="btn btn-c btn-sm" onclick="showLab(0)">Step 1: CSV → Parquet</button>
+      <button class="btn btn-a btn-sm" onclick="showLab(1)">Step 2: Parquet → Iceberg</button>
+      <button class="btn btn-b btn-sm" onclick="showLab(2)">Step 3: Iceberg → DuckDB query</button>
+      <button class="btn btn-g btn-sm" onclick="showLab(3)">Output</button>
+    </div>
+    <div class="demo-out" id="labOut">Select a step to see the code.</div>
+  </div>
+</div>
+
+<!-- ═══════════ S6: QUIZ ═══════════ -->
+<div class="section" id="s6">
+  <div class="sec-header">
+    <span class="sec-num">06</span>
+    <div><div class="sec-title">Check Your <span class="hl">Understanding</span></div></div>
+  </div>
+
+  <!-- Q1 -->
+  <div class="q-card">
+    <div class="q-text">1. A teammate says "Parquet is just a compressed CSV." What's the real distinction that matters for a data pipeline?</div>
+    <div class="q-opt" onclick="pick(this,'q1','A')"><input type="radio" name="q1"> A. Parquet uses gzip compression by default while CSV never does, and that's the only real difference between them.</div>
+    <div class="q-opt" onclick="pick(this,'q1','B')"><input type="radio" name="q1"> B. Parquet rows are stored in the exact order they were written, while CSV silently reorders them during compression.</div>
+    <div class="q-opt" onclick="pick(this,'q1','C')"><input type="radio" name="q1"> C. Parquet files can only be read by Apache Spark, while a CSV file can be read by any tool.</div>
+    <div class="q-opt" onclick="pick(this,'q1','D')"><input type="radio" name="q1"> D. Parquet stores data column-by-column with its schema and types embedded directly in the file, so readers don't have to re-infer types or scan columns they don't need.</div>
+    <div class="q-fb" id="q1-fb"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="q-card">
+    <div class="q-text">2. Polars, DuckDB, and Arrow-backed pandas can all read the same Parquet file and hand data to each other with no conversion step. What makes that possible?</div>
+    <div class="q-opt" onclick="pick(this,'q2','A')"><input type="radio" name="q2"> A. All three agree on Apache Arrow as their shared in-memory column format, so passing data between them needs no re-serialization.</div>
+    <div class="q-opt" onclick="pick(this,'q2','B')"><input type="radio" name="q2"> B. Parquet files secretly contain a hidden Python pickle of the data that every one of these tools knows how to unpickle directly.</div>
+    <div class="q-opt" onclick="pick(this,'q2','C')"><input type="radio" name="q2"> C. DuckDB silently converts every other tool's data into SQL text behind the scenes before handing it back.</div>
+    <div class="q-opt" onclick="pick(this,'q2','D')"><input type="radio" name="q2"> D. Polars and pandas both quietly import DuckDB internally, so all three are actually the same engine wearing different names.</div>
+    <div class="q-fb" id="q2-fb"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="q-card">
+    <div class="q-text">3. A table format like Iceberg sits on top of plain Parquet files. What problem does it solve that Parquet alone doesn't?</div>
+    <div class="q-opt" onclick="pick(this,'q3','A')"><input type="radio" name="q3"> A. It makes the underlying files smaller by applying a second round of compression on top of Parquet.</div>
+    <div class="q-opt" onclick="pick(this,'q3','B')"><input type="radio" name="q3"> B. It replaces SQL entirely with a brand-new query language built specifically for table formats.</div>
+    <div class="q-opt" onclick="pick(this,'q3','C')"><input type="radio" name="q3"> C. It tracks which files belong to the table at each point in time, which is what makes atomic writes, schema evolution, and time travel possible across many Parquet files without rewriting them.</div>
+    <div class="q-opt" onclick="pick(this,'q3','D')"><input type="radio" name="q3"> D. It requires every reader of the table to be written in the same programming language the table was originally created in.</div>
+    <div class="q-fb" id="q3-fb"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="q-card">
+    <div class="q-text">4. After adding a new column to an existing Iceberg table with <code>update_schema()</code>, what happens to the rows that were already in the table?</div>
+    <div class="q-opt" onclick="pick(this,'q4','A')"><input type="radio" name="q4"> A. The table silently refuses the schema change until every existing row is rewritten with a real value for the new column.</div>
+    <div class="q-opt" onclick="pick(this,'q4','B')"><input type="radio" name="q4"> B. Existing rows simply show a null for the new column — nothing about them is rewritten or migrated.</div>
+    <div class="q-opt" onclick="pick(this,'q4','C')"><input type="radio" name="q4"> C. The entire table is automatically dropped and has to be recreated from scratch with the new schema.</div>
+    <div class="q-opt" onclick="pick(this,'q4','D')"><input type="radio" name="q4"> D. Every old row is duplicated once per existing column to preserve backward compatibility with old readers.</div>
+    <div class="q-fb" id="q4-fb"></div>
+  </div>
+
+  <!-- Q5 -->
+  <div class="q-card">
+    <div class="q-text">5. In an interview: "How would you let a BI dashboard, a Python notebook, and a Spark job all query the exact same versioned dataset without each one keeping its own copy?" What's the strongest answer?</div>
+    <div class="q-opt" onclick="pick(this,'q5','A')"><input type="radio" name="q5"> A. Export the data as JSON once and have every tool parse the same JSON file independently.</div>
+    <div class="q-opt" onclick="pick(this,'q5','B')"><input type="radio" name="q5"> B. Pick whichever one tool is most popular and force the other tools to call its API for every single query.</div>
+    <div class="q-opt" onclick="pick(this,'q5','C')"><input type="radio" name="q5"> C. Keep three separate copies, one tuned for each tool, and write a nightly job to try to keep them all in sync.</div>
+    <div class="q-opt" onclick="pick(this,'q5','D')"><input type="radio" name="q5"> D. Put the data in a table format like Iceberg on plain files — every engine that supports it reads the same underlying Parquet files and the same snapshot, with no copying and no sync job to maintain.</div>
+    <div class="q-fb" id="q5-fb"></div>
+  </div>
+</div>
+
+<!-- ═══════════ TOOLKIT ═══════════ -->
+<div class="section">
+  <div class="sec-header">
+    <span class="sec-num">★</span>
+    <div><div class="sec-title">Running <span class="hl">Toolkit</span></div></div>
+  </div>
+  <div class="s-row"><span class="s-q">Why Parquet beats CSV for pipelines</span><span class="s-code">Columnar + embedded schema → no type re-inference, projection pushdown</span></div>
+  <div class="s-row"><span class="s-q">CSV → Parquet (via Arrow)</span><span class="s-code">pq.write_table(pa.Table.from_pandas(df, preserve_index=False), 'file.parquet')</span></div>
+  <div class="s-row"><span class="s-q">Read Parquet schema (no data loaded)</span><span class="s-code">pq.read_table('file.parquet').schema</span></div>
+  <div class="s-row"><span class="s-q">Filter in Arrow (no pandas copy)</span><span class="s-code">t.filter(pc.greater(t['col'], 500))</span></div>
+  <div class="s-row"><span class="s-q">Create a local Iceberg catalog</span><span class="s-code">SqlCatalog('local', uri='sqlite:///…/catalog.db', warehouse='file://…')</span></div>
+  <div class="s-row"><span class="s-q">Create table from Arrow schema</span><span class="s-code">catalog.create_table('ns.name', schema=arrow_tbl.schema)</span></div>
+  <div class="s-row"><span class="s-q">Append rows</span><span class="s-code">table.append(arrow_tbl)  → new snapshot, old files untouched</span></div>
+  <div class="s-row"><span class="s-q">Inspect snapshot history</span><span class="s-code">table.history()  → list of snapshot_id + timestamp</span></div>
+  <div class="s-row"><span class="s-q">Add a column (schema evolution)</span><span class="s-code">with table.update_schema() as u: u.add_column('col', DoubleType())</span></div>
+  <div class="s-row"><span class="s-q">Time travel to past snapshot</span><span class="s-code">table.scan(snapshot_id=snap_id).to_pandas()</span></div>
+  <div class="s-row"><span class="s-q">Iceberg → DuckDB query</span><span class="s-code">table.scan().to_duckdb('view_name').sql('SELECT …').show()</span></div>
+  <div class="s-row"><span class="s-q">preserve_index=False — always use it</span><span class="s-code">pa.Table.from_pandas(df, preserve_index=False)  ← avoids schema mismatch</span></div>
+</div>
+
+<script>
+// ── Progress bar ──────────────────────────────────────
+window.addEventListener('scroll', () => {
+  const p = document.getElementById('progressBar');
+  const h = document.documentElement;
+  p.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+});
+
+// ── Format advisor ────────────────────────────────────
+const fmtData = {
+  csv: 'Use: CSV\n\nYou need maximum interoperability — the recipient might open it in Excel,\nshare it over email, or just cat it to inspect.\n\nCSV trades performance for readability. When the file is small and\nthe transfer is one-time, that trade is worth it.',
+  parquet: 'Use: Parquet\n\nA daily pipeline should write Parquet, full stop.\n\n• Schema is embedded — no re-inference on every run\n• Columns the query doesn\'t need are never read off disk\n• File is 2–5× smaller (gap grows with real production scale)\n• Every modern tool (DuckDB, Polars, Spark, BigQuery) reads it natively',
+  either: 'Use: Parquet\n\nIf you need the schema guaranteed, Parquet is the right choice.\nCSV\'s type-inference can silently misread an integer-looking column as a\nstring (or vice versa) if even one row looks different.\n\nFor learning and debugging, Parquet + pq.read_table().schema gives you\na strict, guaranteed schema check in one line.'
+};
+function formatAdvice(key) {
+  document.getElementById('fmtOut').textContent = fmtData[key];
+}
+
+// ── Snapshot timeline ─────────────────────────────────
+const snapData = {
+  create: `catalog.create_table("sales.orders", schema=arrow_tbl.schema)
+
+Iceberg creates:
+  iceberg_warehouse/
+  └── sales/
+      └── orders/
+          └── metadata/
+              └── 00000-…-m0.avro   ← empty metadata file
+
+No Parquet data files yet. The table exists but has no snapshots.`,
+  append1: `table.append(arrow_tbl)   # 1,200 rows
+
+Iceberg creates:
+  └── data/
+  │   └── part-00000-….parquet    ← 1,200 rows
+  └── metadata/
+      ├── snap-8449…-m0.avro      ← manifest (which file → which rows)
+      └── 00001-….metadata.json   ← new metadata pointer
+
+table.history() → [snapshot_id=8449…, timestamp=…]
+table.scan().to_pandas() → 1,200 rows`,
+  append2: `table.append(arrow_tbl2)  # 200 rows
+
+Iceberg creates a SECOND set of files — does NOT rewrite the first:
+  └── data/
+  │   ├── part-00000-….parquet    ← original 1,200 (untouched)
+  │   └── part-00001-….parquet    ← new 200 rows
+  └── metadata/
+      ├── snap-8449…-m0.avro
+      ├── snap-7705…-m1.avro      ← new manifest
+      └── 00002-….metadata.json   ← new pointer
+
+table.history() → [snapshot 8449…, snapshot 7705…]
+table.scan().to_pandas() → 1,400 rows`,
+  schema: `with table.update_schema() as u:
+    u.add_column("discount_pct", DoubleType())
+
+Iceberg creates:
+  └── metadata/
+      └── 00003-….metadata.json   ← schema version incremented
+
+NO Parquet files are rewritten.
+Existing rows: discount_pct column reads back as null.
+
+table.schema() now shows field 6: discount_pct: optional double`,
+  timetravel: `first_snap = table.history()[0].snapshot_id
+
+table.scan(snapshot_id=first_snap).to_pandas() → 1,200 rows
+table.scan().to_pandas()                        → 1,400 rows
+
+Iceberg reads the metadata pointer for snapshot 8449…
+which points at only part-00000-….parquet (the original file).
+
+No restore, no backup, no copy.
+Time travel is a parameter on a read.`
+};
+function showSnap(key) {
+  document.getElementById('snapOut').textContent = snapData[key];
+}
+
+// ── Lab steps ─────────────────────────────────────────
+const labSteps = [
+`# Step 1: CSV → Parquet (via Arrow)
+import pandas as pd, pyarrow as pa, pyarrow.parquet as pq
+
+df = pd.read_csv("sales_ledger.csv")
+arrow_tbl = pa.Table.from_pandas(df, preserve_index=False)
+pq.write_table(arrow_tbl, "sales_ledger.parquet")
+# Result: 18,236 bytes vs 41,719 bytes for the CSV`,
+
+`# Step 2: Parquet file → Iceberg table
+import os
+from pyiceberg.catalog.sql import SqlCatalog
+
+warehouse_path = os.path.abspath("iceberg_warehouse")
+catalog = SqlCatalog("local",
+    uri=f"sqlite:///{warehouse_path}/catalog.db",
+    warehouse=f"file://{warehouse_path}")
+catalog.create_namespace("sales")
+
+mini_table = catalog.create_table(
+    "sales.mini_project", schema=arrow_tbl.schema)
+mini_table.append(pq.read_table("sales_ledger.parquet"))`,
+
+`# Step 3: Iceberg → DuckDB query (no pandas in the middle)
+con = mini_table.scan().to_duckdb(table_name="orders_view")
+result = con.sql(
+    "SELECT region, COUNT(*) AS n, "
+    "ROUND(SUM(revenue),2) AS total_revenue "
+    "FROM orders_view GROUP BY region ORDER BY region"
+)
+print(result)`,
+
+`# Output
+┌─────────┬───────┬───────────────┐
+│ region  │   n   │ total_revenue │
+│ varchar │ int64 │    double     │
+├─────────┼───────┼───────────────┤
+│ AMER    │   311 │    159112.42  │
+│ APAC    │   540 │    299866.96  │
+│ EMEA    │   349 │    184726.77  │
+└─────────┴───────┴───────────────┘
+
+Full pipeline: CSV → Parquet → Iceberg → DuckDB SQL
+No copies. No intermediate pandas DataFrames. One governed table.`
+];
+function showLab(i) {
+  document.getElementById('labOut').textContent = labSteps[i];
+}
+
+// ── Quiz ─────────────────────────────────────────────
+const answers = { q1:'D', q2:'A', q3:'C', q4:'B', q5:'D' };
+const feedback = {
+  q1: {
+    A: '✗ Compression is one part of Parquet, not the whole story. CSV can also be gzip-compressed.',
+    B: '✗ Parquet doesn\'t reorder rows. That\'s not a feature of either format.',
+    C: '✗ Parquet is not Spark-exclusive — DuckDB, Polars, pandas, BigQuery, Snowflake all read it natively.',
+    D: '✅ Correct — columnar storage plus an embedded self-describing schema. That\'s what enables projection pushdown (never read columns you don\'t need) and type safety (no re-inference).',
+  },
+  q2: {
+    A: '✅ Correct — all three are Arrow-native. Handing data between them is a pointer, not a re-encoding. That\'s the architectural decision that made Session 1\'s zero-copy demos possible.',
+    B: '✗ No hidden pickle. The exchange is a shared in-memory columnar layout, not serialization.',
+    C: '✗ DuckDB doesn\'t convert everything to SQL text internally. It reads the Arrow buffer directly.',
+    D: '✗ Polars and pandas are independent tools. They share a standard (Arrow), not an implementation.',
+  },
+  q3: {
+    A: '✗ Iceberg doesn\'t apply additional compression to Parquet files.',
+    B: '✗ Iceberg doesn\'t replace SQL. DuckDB can query an Iceberg table with standard SQL.',
+    C: '✅ Correct — the version-tracking layer is the whole point. Without it, you get a folder of files but no way to atomically update them, evolve their schema, or query a past state.',
+    D: '✗ Iceberg is language-agnostic. DuckDB, Spark, Polars, and plain Python can all read the same table.',
+  },
+  q4: {
+    A: '✗ Iceberg\'s schema evolution is metadata-only for added columns. No rewrite, no forced backfill.',
+    B: '✅ Correct — adding a column in Iceberg is a metadata operation. Old rows simply read back as null for the new field. That\'s the guarantee production data platforms depend on.',
+    C: '✗ The table is not dropped. That would defeat the entire purpose of a table format.',
+    D: '✗ No duplication. Old files are completely untouched.',
+  },
+  q5: {
+    A: '✗ JSON parsing doesn\'t scale and forces every tool to do its own type parsing — back to the CSV problem.',
+    B: '✗ Forcing every tool through one API creates a bottleneck and tight coupling.',
+    C: '✗ Three copies plus a nightly sync is the worst of all worlds — consistency risk, maintenance overhead, and storage cost.',
+    D: '✅ Correct — Iceberg tables on plain Parquet files are the answer because they eliminate the need for any copy. Every engine reads the same files and the same snapshot. This is what modern data platforms (Databricks, Snowflake, BigQuery) are converging on.',
+  },
+};
+
+function pick(el, qid, choice) {
+  const siblings = el.parentNode.querySelectorAll('.q-opt');
+  siblings.forEach(s => { s.classList.remove('correct','wrong'); s.querySelector('input').checked = false; });
+  el.querySelector('input').checked = true;
+  const isCorrect = choice === answers[qid];
+  el.classList.add(isCorrect ? 'correct' : 'wrong');
+  const fb = document.getElementById(qid + '-fb');
+  fb.textContent = feedback[qid][choice];
+  fb.className = 'q-fb show ' + (isCorrect ? 'ok' : 'err');
+}
+</script>
+</body>
+</html>
